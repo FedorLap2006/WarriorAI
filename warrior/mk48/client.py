@@ -22,17 +22,18 @@ class Client:
 
     async def listen_metadata(self):
         # print('listening hello')
-        count = 0
         async for msg in self.meta_ws:
-            msg = json.loads(msg)
-            print(list(msg.keys())[0])
+            pass
 
     async def listen_session(self):
         # print('listening session')
-        count = 0
         async for msg in self.session_ws:
             msg = json.loads(msg)
-            print(list(msg.keys())[0])
+
+            if list(msg.keys())[0] == 'contacts':
+                for c in msg['contacts']:
+                    [header, data] = c
+                    print(protocol.Contact(header=header, data=data))
 
     async def close(self):
         if self.session_ws is not None:

@@ -92,3 +92,45 @@ class SendChat:
 @dataclass
 class Spawn:
     entity_type: str
+
+
+class ContactHeader:
+    HEADER_POSITIONS = [
+        'velocity', 'altitude', 'direction_target', 'velocity_target',
+        'damage', 'type', 'player_id', 'reloads'
+    ]
+    POSITIONS = {v: i for i, v in enumerate(HEADER_POSITIONS)}
+
+    def __init__(self, bits: int):
+        for i in range(len(self.HEADER_POSITIONS)):
+            setattr(self, self.HEADER_POSITIONS[i], bool(bits & (1 << i)))
+
+    def __repr__(self) -> str:
+        flags = ', '.join(
+            [v + "=True" for v in self.HEADER_POSITIONS if getattr(self, v)])
+        return f'ContactHeader({flags})'
+
+
+@message('contact')
+class Contact:
+
+    def __init__(self, header: int, data: list):
+        self.header = ContactHeader(header)
+
+        self.id = data[0]
+        self.position = data[1]
+        self.direction = data[2]
+        data = data[3:]
+
+        i = 0
+        for p in self.header.HEADER_POSITIONS:
+            setattr(self, p, data[i] if getattr(self.header, p) else None)
+            if getattr(self.header, p):
+                i += 1
+
+    def __repr__(self) -> str:
+        params = ', '.join([
+            k + "=" + format(v) for k, v in vars(self).items() if v is not None
+        ])
+
+        return f'ContactHeader({params})'

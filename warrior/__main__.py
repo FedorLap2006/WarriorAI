@@ -7,6 +7,7 @@ async def main():
     my_client = client.Client()
     await my_client.init_player('WarriorAI')
     await my_client.init_session()
+    print(my_client.session)
     await asyncio.gather(
         my_client.spawn('fairmileD'),
         my_client.listen_metadata(),
