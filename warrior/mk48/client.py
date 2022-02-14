@@ -29,11 +29,27 @@ class Client:
         # print('listening session')
         async for msg in self.session_ws:
             msg = json.loads(msg)
+            if 'terrain' in list(msg.keys()):
+                tu = protocol.TerrainUpdate(msg['terrain'])
+                print([c.chunk for c in tu.chunks])
+                for c in tu.chunks:
+                    if c.is_update:
+                        continue
+                    print(c.chunk)
+                    c.altitudes
+                    c.print()
+                    print('======================================')
 
             if list(msg.keys())[0] == 'contacts':
                 for c in msg['contacts']:
                     [header, data] = c
-                    print(protocol.Contact(header=header, data=data))
+                    decoded = protocol.Contact(header=header, data=data)
+                    if decoded.header.player_id and decoded.player_id == self.session.player_id:
+                        print(decoded)
+
+            #     # for v in msg['terrain']:
+            #     #     if v[1]['is_update']:
+            #     #         print(v)
 
     async def close(self):
         if self.session_ws is not None:

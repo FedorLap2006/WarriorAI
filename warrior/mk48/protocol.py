@@ -2,8 +2,14 @@ from dataclasses import dataclass, field
 import dataclasses
 import functools
 import json
+import math
 from types import FunctionType
 from typing import Any, Tuple, Union
+from hilbertcurve.hilbertcurve import HilbertCurve
+import rle
+
+CHUNK_SIZE = 64
+HILBERT_CURVE = HilbertCurve(p=int(math.log2(CHUNK_SIZE)), n=2, n_procs=0)
 
 
 def _dict_drop_nulls(src: dict) -> dict:
@@ -111,7 +117,6 @@ class ContactHeader:
         return f'ContactHeader({flags})'
 
 
-@message('contact')
 class Contact:
 
     def __init__(self, header: int, data: list):
@@ -134,3 +139,81 @@ class Contact:
         ])
 
         return f'ContactHeader({params})'
+
+
+class ChunkUpdate:
+    # LAND_ALTITUDE = 15
+    # ALTITUDE_STR = {}
+
+    def __init__(self, chunk, chunk_data: dict):
+        self.chunk = chunk
+        self.is_update = chunk_data['is_update']
+        self.bytes = chunk_data['bytes']
+        self.cached_altitudes = None
+
+    def _decode_positioned_pixel(self, byte):
+        return (((byte >> 10) & 0xff, ((byte >> 4) % 64) & 0xff),
+                ((byte % 16) & 0xff) << 4)
+
+    def _decode_pixel(self, byte) -> tuple:
+        return (byte & 0xf, (byte >> 4) & 0xf)
+
+    @property
+    def altitudes(self):
+        if self.cached_altitudes is not None:
+            return self.cached_altitudes
+
+        if not self.is_update:
+            self.cached_altitudes = [[0 for _ in range(CHUNK_SIZE)]
+                                     for _ in range(CHUNK_SIZE)]
+            # 0, 1
+            # 2, 3
+            # 4, 5
+            # 6, 7
+            bytes = rle.decode([b & 0xf for b in self.bytes],
+                               [(b & 0xf) + 1 for b in self.bytes])
+            for i, v in enumerate(bytes):
+                point = HILBERT_CURVE.point_from_distance(i)
+                self.cached_altitudes[point[0]][point[1]] = v
+            return self.cached_altitudes
+
+        for v in self.bytes:
+            self.cached_altitudes = [[0 for _ in range(CHUNK_SIZE)]
+                                     for _ in range(CHUNK_SIZE)]
+            (x, y), d = self._decode_positioned_pixel(v)
+            self.cached_altitudes[y][x] = d
+
+        return self.cached_altitudes
+
+    def print(self):
+        print(self.is_update)
+        shades = [' ', '-']
+        for i in range(CHUNK_SIZE):
+            for j in range(CHUNK_SIZE):
+                v = self.cached_altitudes[i][j] << 4 > 127
+                print(shades[v], end='')
+            print()
+
+
+class TerrainUpdate:
+
+    def __init__(self, data):
+        # is_update = True
+        # x = byte >> 10
+        # y = byte >> 4
+        # value = byte & 0
+        self.chunks = [ChunkUpdate(chunk, update) for [chunk, update] in data]
+
+
+class Update:
+
+    def __init__(self, msg: dict):
+        self.contacts = [
+            Contact(header=header, data=c) for (header, c) in msg['contacts']
+        ]
+        self.terrain = TerrainUpdate(msg['terrain'])
+
+        self.score = msg['score']
+        self.world_radius = msg['world_radius']
+
+        pass
